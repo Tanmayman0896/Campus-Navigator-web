@@ -244,16 +244,17 @@ export default function CampusNavigator() {
           fill
           priority
           className="object-cover"
+          quality={100}
           onError={() => setBgImageError(true)}
           style={{
-            opacity: bgImageError ? 0 : 1,
+            opacity: bgImageError ? 0 : 0.9,
           }}
         />
         {bgImageError && (
           <div className="absolute inset-0 bg-gradient-to-r from-slate-100 to-slate-200" />
         )}
-        {/* Modified overlay with reduced opacity */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-50/50 via-blue-50/40 to-purple-50/40 dark:from-slate-900/70 dark:via-purple-900/10 dark:to-slate-900/70" />
+        {/* Simpler overlay */}
+        <div className="absolute inset-0 bg-black/20" /> {/* Just a light dark overlay */}
       </div>
 
       {/* Content */}

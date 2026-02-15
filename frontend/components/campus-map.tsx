@@ -1,24 +1,28 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
-import { Wrapper, Status } from "@googlemaps/react-wrapper"
+import { useState, useCallback } from "react"
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { MapPin, Navigation, Users, Clock, Search, Zap } from "lucide-react"
-
-type LocationType = "library" | "social" | "academic" | "dining" | "recreation" | "housing"
+import { Badge } from "@/components/ui/badge"
+import { MapPin, Navigation, Users, Clock, Search, Zap, Building, Home, BookOpen, UtensilsCrossed, Dumbbell, GraduationCap } from "lucide-react"
 
 interface CampusLocation {
   id: number
-  name: string
-  type: LocationType
   lat: number
   lng: number
+  name: string
+  description?: string
+  type: LocationType
+  category: string
+  amenities: string[]
   mentors: number
   tips: number
   address: string
 }
+
+type LocationType = 'library' | 'social' | 'academic' | 'dining' | 'recreation' | 'housing'
 
 const campusLocations: CampusLocation[] = [
   { 
@@ -29,7 +33,9 @@ const campusLocations: CampusLocation[] = [
     lng: -73.9851, 
     mentors: 3, 
     tips: 12,
-    address: "5th Ave, New York, NY 10018"
+    address: "5th Ave, New York, NY 10018",
+    category: "Academic",
+    amenities: ["WiFi", "Study Rooms", "Computer Lab"]
   },
   { 
     id: 2, 
@@ -39,7 +45,9 @@ const campusLocations: CampusLocation[] = [
     lng: -73.9776, 
     mentors: 5, 
     tips: 8,
-    address: "Park Ave, New York, NY 10016"
+    address: "Park Ave, New York, NY 10016",
+    category: "Social",
+    amenities: ["Cafeteria", "Recreation Room", "Meeting Rooms"]
   },
   { 
     id: 3, 
@@ -49,7 +57,9 @@ const campusLocations: CampusLocation[] = [
     lng: -73.9934, 
     mentors: 4, 
     tips: 15,
-    address: "Washington Sq S, New York, NY 10012"
+    address: "Washington Sq S, New York, NY 10012",
+    category: "Academic",
+    amenities: ["Labs", "Workshops", "3D Printing"]
   },
   { 
     id: 4, 
@@ -59,7 +69,9 @@ const campusLocations: CampusLocation[] = [
     lng: -73.9855, 
     mentors: 2, 
     tips: 6,
-    address: "W 42nd St, New York, NY 10018"
+    address: "W 42nd St, New York, NY 10018",
+    category: "Dining",
+    amenities: ["Multiple Cuisines", "Vegan Options", "Late Hours"]
   },
   { 
     id: 5, 
@@ -69,7 +81,9 @@ const campusLocations: CampusLocation[] = [
     lng: -73.9654, 
     mentors: 3, 
     tips: 9,
-    address: "Central Park West, New York, NY 10024"
+    address: "Central Park West, New York, NY 10024",
+    category: "Recreation",
+    amenities: ["Gym", "Pool", "Courts", "Classes"]
   },
   { 
     id: 6, 
@@ -79,7 +93,9 @@ const campusLocations: CampusLocation[] = [
     lng: -73.9857, 
     mentors: 6, 
     tips: 18,
-    address: "MacDougal St, New York, NY 10012"
+    address: "MacDougal St, New York, NY 10012",
+    category: "Housing",
+    amenities: ["Common Areas", "Laundry", "Study Lounges"]
   },
 ]
 
@@ -92,146 +108,91 @@ const locationTypes: Record<LocationType, { color: string; icon: string }> = {
   housing: { color: "#EAB308", icon: "🏠" },
 }
 
-// Google Maps component
-function GoogleMap({ 
-  center, 
-  zoom, 
-  locations, 
-  onLocationSelect 
-}: {
-  center: { lat: number; lng: number }
-  zoom: number
-  locations: CampusLocation[]
-  onLocationSelect: (location: CampusLocation | null) => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [map, setMap] = useState<google.maps.Map>()
-  const [markers, setMarkers] = useState<google.maps.Marker[]>([])
-  const [infoWindow, setInfoWindow] = useState<google.maps.InfoWindow>()
-
-  useEffect(() => {
-    if (ref.current && !map) {
-      const newMap = new window.google.maps.Map(ref.current, {
-        center,
-        zoom,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: false,
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: "off" }]
-          }
-        ]
-      })
-      setMap(newMap)
-      
-      const newInfoWindow = new window.google.maps.InfoWindow()
-      setInfoWindow(newInfoWindow)
-    }
-  }, [ref, map, center, zoom])
-
-  useEffect(() => {
-    if (map && locations) {
-      // Clear existing markers
-      markers.forEach((marker: google.maps.Marker) => marker.setMap(null))
-      
-      // Create new markers
-      const newMarkers = locations.map(location => {
-        const marker = new window.google.maps.Marker({
-          position: { lat: location.lat, lng: location.lng },
-          map,
-          title: location.name,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 12,
-            fillColor: locationTypes[location.type].color,
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2,
-          }
-        })
-
-        marker.addListener('click', () => {
-          const content = `
-            <div style="padding: 8px; max-width: 200px;">
-              <h3 style="margin: 0 0 8px 0; font-weight: bold;">${location.name}</h3>
-              <p style="margin: 0 0 8px 0; color: #666; font-size: 12px;">${location.address}</p>
-              <div style="display: flex; gap: 16px; margin-bottom: 8px; font-size: 12px;">
-                <span>👥 ${location.mentors} mentors</span>
-                <span>⚡ ${location.tips} tips</span>
-              </div>
-              <button 
-                onclick="window.selectLocation(${location.id})" 
-                style="background: #3B82F6; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;"
-              >
-                View Details
-              </button>
-            </div>
-          `
-          
-          if (infoWindow) {
-            infoWindow.setContent(content)
-            infoWindow.open(map, marker)
-          }
-          
-          onLocationSelect(location)
-        })
-
-        return marker
-      })
-      
-      setMarkers(newMarkers)
-    }
-  }, [map, locations, infoWindow, onLocationSelect])
-
-  // Global function for info window button
-  useEffect(() => {
-    (window as any).selectLocation = (locationId: number) => {
-      const location = locations.find(loc => loc.id === locationId)
-      if (location) {
-        onLocationSelect(location)
-      }
-    }
-  }, [locations, onLocationSelect])
-
-  return <div ref={ref} style={{ width: "100%", height: "400px" }} />
+// Map container style
+const mapContainerStyle = {
+  width: '100%',
+  height: '400px'
 }
 
-// Status component for Google Maps loading
-const MapStatus = ({ status }: { status: Status }) => {
-  if (status === Status.LOADING) return <div className="h-96 flex items-center justify-center">Loading Maps...</div>
-  if (status === Status.FAILURE) return <div className="h-96 flex items-center justify-center text-red-500">Error loading maps</div>
-  return null
+const center = {
+  lat: 40.7589,
+  lng: -73.9851
 }
 
 export default function CampusMap() {
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+  })
+
   const [selectedLocation, setSelectedLocation] = useState<CampusLocation | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [map, setMap] = useState<google.maps.Map | null>(null)
 
   const filteredLocations = campusLocations.filter((location) =>
-    location.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    location.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    location.amenities.some(amenity => amenity.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
-  const campusCenter = { lat: 40.7589, lng: -73.9851 } // New York area for demo
+  const onLoad = useCallback((map: google.maps.Map) => {
+    setMap(map)
+  }, [])
+
+  const onUnmount = useCallback(() => {
+    setMap(null)
+  }, [])
+
+  const handleMarkerClick = (location: CampusLocation) => {
+    setSelectedLocation(location)
+  }
 
   const handleLocationSelect = useCallback((location: CampusLocation | null) => {
     setSelectedLocation(location)
-  }, [])
-
-  const render = (status: Status) => {
-    if (status === Status.SUCCESS) {
-      return (
-        <GoogleMap
-          center={campusCenter}
-          zoom={14}
-          locations={filteredLocations}
-          onLocationSelect={handleLocationSelect}
-        />
-      )
+    if (location && map) {
+      map.panTo({ lat: location.lat, lng: location.lng })
+      map.setZoom(16)
     }
-    return <MapStatus status={status} />
+  }, [map])
+
+  if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) {
+    return (
+      <div className="space-y-6 animate-slide-in-up">
+        <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-blue-200/50">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-3 text-2xl">
+              <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl text-white">
+                <MapPin className="w-6 h-6" />
+              </div>
+              Interactive Campus Map
+            </CardTitle>
+            <CardDescription className="mt-2 text-base text-red-600">
+              Google Maps API key is missing. Please add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to your .env.local file.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6 animate-slide-in-up">
+        <Card className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-200/50">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-3 text-2xl text-red-600">
+              <div className="p-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl text-white">
+                <MapPin className="w-6 h-6" />
+              </div>
+              Map Loading Error
+            </CardTitle>
+            <CardDescription className="mt-2 text-base text-red-600">
+              Failed to load Google Maps. Please check your API key and internet connection.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -275,96 +236,66 @@ export default function CampusMap() {
 
           {/* Interactive Map */}
           <div className="relative bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-800 dark:to-blue-900/20 border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
-            {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY !== 'your_google_maps_api_key_here' ? (
-              <Wrapper 
-                apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY} 
-                render={render}
-              />
-            ) : (
-              <div className="relative h-96 bg-gradient-to-br from-green-100 via-blue-100 to-purple-100 dark:from-green-900/20 dark:via-blue-900/20 dark:to-purple-900/20">
-                <div 
-                  className="absolute inset-0"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fillRule='evenodd'%3E%3Cg fill='%23164e63' fillOpacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                  }}
-                >
-                  {/* Campus Locations */}
-                  {filteredLocations.map((location) => {
-                    // Convert lat/lng to percentage for display
-                    const x = ((location.lng + 74) * 100) % 100; // Rough conversion for demo
-                    const y = ((40.8 - location.lat) * 100) % 100; // Rough conversion for demo
-                    
-                    return (
-                      <div
-                        key={location.id}
-                        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-300 hover:scale-110 ${
-                          selectedLocation?.id === location.id ? "scale-125 z-20" : "z-10"
-                        }`}
-                        style={{ left: `${x}%`, top: `${y}%` }}
-                        onClick={() => setSelectedLocation(location)}
-                      >
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center text-white shadow-xl ring-4 ring-white/50 backdrop-blur-sm transition-all duration-300 ${
-                            selectedLocation?.id === location.id ? 'animate-pulse scale-110' : 'hover:scale-105'
-                          }`}
-                          style={{ backgroundColor: locationTypes[location.type].color }}
-                        >
-                          <span className="text-lg">{locationTypes[location.type].icon}</span>
-                        </div>
-                        
-                        {selectedLocation?.id === location.id && (
-                          <div className="absolute top-14 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl p-4 shadow-2xl min-w-56 z-30 animate-bounce-in">
-                            <h4 className="font-bold text-lg text-foreground mb-1">{location.name}</h4>
-                            <p className="text-sm text-muted-foreground mb-3">{location.address}</p>
-                            <div className="flex items-center gap-4 text-sm mb-3">
-                              <div className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg">
-                                <Users className="w-3 h-3 text-blue-600" />
-                                <span className="text-blue-700 font-medium">{location.mentors} mentors</span>
-                              </div>
-                              <div className="flex items-center gap-1 bg-purple-50 px-2 py-1 rounded-lg">
-                                <Zap className="w-3 h-3 text-purple-600" />
-                                <span className="text-purple-700 font-medium">{location.tips} tips</span>
-                              </div>
-                            </div>
-                            <Button size="sm" className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 border-0 text-white">
-                              View Details
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {/* Modern Map Legend */}
-                <div className="absolute bottom-4 left-4 bg-white/80 backdrop-blur-xl border border-white/20 rounded-2xl p-4 shadow-xl">
-                  <h4 className="text-sm font-bold mb-3 text-foreground">Campus Locations</h4>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    {Object.entries(locationTypes).map(([type, config]) => (
-                      <div key={type} className="flex items-center gap-2">
-                        <div 
-                          className="w-4 h-4 rounded-full flex items-center justify-center shadow-sm"
-                          style={{ backgroundColor: config.color }}
-                        >
-                          <span className="text-[10px]">{config.icon}</span>
-                        </div>
-                        <span className="capitalize font-medium text-foreground">{type}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-white/20">
-                    <p className="text-xs text-muted-foreground font-medium">
-                      💡 Add your Google Maps API key for real maps
-                    </p>
-                  </div>
-                </div>
+            {isLoaded ? (
+              <GoogleMap
+                mapContainerStyle={mapContainerStyle}
+                center={center}
+                zoom={14}
+                onLoad={onLoad}
+                onUnmount={onUnmount}
+                options={{
+                  zoomControl: true,
+                  streetViewControl: true,
+                  mapTypeControl: true,
+                  fullscreenControl: true,
+                }}
+              >
+                {filteredLocations.map((location) => (
+                  <Marker
+                    key={location.id}
+                    position={{ lat: location.lat, lng: location.lng }}
+                    onClick={() => handleMarkerClick(location)}
+                    icon={{
+                      path: google.maps.SymbolPath.CIRCLE,
+                      scale: 12,
+                      fillColor: locationTypes[location.type].color,
+                      fillOpacity: 1,
+                      strokeColor: '#ffffff',
+                      strokeWeight: 2,
+                    }}
+                  />
+                ))}
 
-                {/* Floating Stats */}
-                <div className="absolute top-4 right-4 bg-white/80 backdrop-blur-xl border border-white/20 rounded-2xl p-3 shadow-xl">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">{filteredLocations.length}</div>
-                    <div className="text-xs text-muted-foreground font-medium">Locations</div>
-                  </div>
+                {selectedLocation && (
+                  <InfoWindow
+                    position={{ lat: selectedLocation.lat, lng: selectedLocation.lng }}
+                    onCloseClick={() => setSelectedLocation(null)}
+                  >
+                    <div className="p-3 max-w-xs">
+                      <h3 className="font-bold text-lg mb-1">{selectedLocation.name}</h3>
+                      <p className="text-gray-600 text-sm mb-2">{selectedLocation.address}</p>
+                      <div className="flex items-center gap-3 mb-2 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3 text-blue-600" />
+                          <span className="text-blue-700 font-medium">{selectedLocation.mentors} mentors</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-purple-600" />
+                          <span className="text-purple-700 font-medium">{selectedLocation.tips} tips</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <strong>Amenities:</strong> {selectedLocation.amenities.join(', ')}
+                      </div>
+                    </div>
+                  </InfoWindow>
+                )}
+              </GoogleMap>
+            ) : (
+              <div className="h-96 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading Campus Map...</p>
                 </div>
               </div>
             )}

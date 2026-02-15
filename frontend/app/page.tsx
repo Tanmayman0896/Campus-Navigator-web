@@ -20,25 +20,41 @@ import {
   Award,
   Clock,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  LogIn,
+  UserPlus
 } from "lucide-react"
-import CampusMap from "@/components/campus-map"
+// import { useAuth } from "@/contexts/AuthContext"
+import CampusMap from "@/components/campus-map-new"
 import LearningModules from "@/components/learning-modules"
 import CommunityHub from "@/components/community-hub"
 import GameificationDashboard from "@/components/gamification-dashboard"
+import LoginForm from "@/components/auth/LoginForm"
+import RegisterForm from "@/components/auth/RegisterForm"
+import Header from "@/components/header"
 
 export default function CampusNavigator() {
+  // const { user, loading } = useAuth()
+  const user = null; // Temporary - no auth for now
+  const loading = false;
   const [activeView, setActiveView] = useState("home")
+  const [showAuth, setShowAuth] = useState<"login" | "register" | null>(null)
   const [mounted, setMounted] = useState(false)
   const [userProgress, setUserProgress] = useState({
-    level: 2,
-    xp: 750,
+    level: 1,
+    xp: 150,
     nextLevelXp: 1000,
-    badges: 12,
-    completedModules: 8,
+    badges: 2,
+    completedModules: 2,
     totalModules: 15,
     streak: 5,
   })
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+
 
   useEffect(() => {
     setMounted(true)
@@ -272,6 +288,9 @@ export default function CampusNavigator() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 dark:from-slate-900 dark:via-purple-900/20 dark:to-slate-900">
+      {/* Header */}
+      <Header activeView={activeView} onViewChange={setActiveView} />
+      
       {/* Status Bar */}
       <div className="bg-black text-white px-4 py-1 flex items-center justify-between text-xs">
         <div className="flex items-center gap-2">

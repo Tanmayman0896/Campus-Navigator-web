@@ -1,24 +1,26 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { BookOpen, CheckCircle, Clock, Star, Trophy, Play, Lock } from "lucide-react"
+import { BookOpen, CheckCircle, Clock, Star, Trophy, Play, Lock, Loader2 } from "lucide-react"
+import apiService from "@/lib/api"
 
-const learningModules = [
+// Fallback data for when backend is not available
+const fallbackModules = [
   {
     id: 1,
     title: "Library Navigation 101",
     description: "Master the art of finding books, study spaces, and research resources",
     duration: "15 min",
     difficulty: "Beginner",
-    xp: 100,
+    xp_reward: 100,
     completed: true,
     locked: false,
     progress: 100,
-    badge: "Library Explorer",
+    badge_name: "Library Explorer",
   },
   {
     id: 2,
@@ -26,11 +28,11 @@ const learningModules = [
     description: "Learn meal plan basics, dining hours, and social customs",
     duration: "10 min",
     difficulty: "Beginner",
-    xp: 75,
+    xp_reward: 75,
     completed: true,
     locked: false,
     progress: 100,
-    badge: "Foodie",
+    badge_name: "Foodie",
   },
   {
     id: 3,
@@ -38,11 +40,11 @@ const learningModules = [
     description: "Essential safety protocols and equipment usage in campus labs",
     duration: "20 min",
     difficulty: "Intermediate",
-    xp: 150,
+    xp_reward: 150,
     completed: false,
     locked: false,
     progress: 60,
-    badge: "Safety First",
+    badge_name: "Safety First",
   },
   {
     id: 4,
@@ -50,11 +52,11 @@ const learningModules = [
     description: "Navigate the online portal for exam scheduling and requirements",
     duration: "12 min",
     difficulty: "Intermediate",
-    xp: 125,
+    xp_reward: 125,
     completed: false,
     locked: false,
     progress: 0,
-    badge: "Test Master",
+    badge_name: "Test Master",
   },
   {
     id: 5,
@@ -62,11 +64,11 @@ const learningModules = [
     description: "Deep dive into academic research tools and methodologies",
     duration: "30 min",
     difficulty: "Advanced",
-    xp: 200,
+    xp_reward: 200,
     completed: false,
     locked: true,
     progress: 0,
-    badge: "Research Pro",
+    badge_name: "Research Pro",
   },
 ]
 
@@ -76,26 +78,67 @@ const difficultyColors = {
   Advanced: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 }
 
-export default function LearningModules({ userProgress, setUserProgress }) {
-  const [selectedModule, setSelectedModule] = useState(null)
+export default function LearningModules({ userProgress, setUserProgress }: { userProgress: any, setUserProgress: any }) {
+  const [selectedModule, setSelectedModule] = useState<any>(null)
+  const [modules, setModules] = useState(fallbackModules)
+  const [loading, setLoading] = useState(false)
+
+  // Load modules from API
+  useEffect(() => {
+    const loadModules = async () => {
+      setLoading(true)
+      try {
+        const response = await apiService.getLearningModules() as any
+        if (response.success && response.modules) {
+          setModules(response.modules)
+        }
+      } catch (error) {
+        console.warn('Failed to load modules from API, using fallback data:', error)
+        // Keep using fallback data
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadModules()
+  }, [])
 
   const startModule = (module) => {
     if (module.locked) return
     setSelectedModule(module)
   }
 
-  const completeModule = (moduleId) => {
-    const module = learningModules.find((m) => m.id === moduleId)
-    if (module && !module.completed) {
-      module.completed = true
-      module.progress = 100
-      setUserProgress((prev) => ({
+  const completeModule = async (moduleId) => {
+    const module = modules.find((m) => m.id === moduleId)
+    if (!module || module.completed) return
+
+    try {
+      // Try to call API, but continue regardless
+      try {
+        await apiService.completeModule(moduleId.toString())
+      } catch (apiError) {
+        console.warn('Failed to update module completion via API:', apiError)
+      }
+
+      // Update local state
+      const updatedModules = modules.map(m => 
+        m.id === moduleId 
+          ? { ...m, completed: true, progress: 100 }
+          : m
+      )
+      setModules(updatedModules)
+
+      // Update user progress
+      setUserProgress((prev: { xp: number; completedModules: number; badges: number }) => ({
         ...prev,
-        xp: prev.xp + module.xp,
+        xp: prev.xp + (module.xp_reward || 0),
         completedModules: prev.completedModules + 1,
         badges: prev.badges + 1,
       }))
+    } catch (error) {
+      console.error('Error completing module:', error)
     }
+    
     setSelectedModule(null)
   }
 
@@ -125,7 +168,7 @@ export default function LearningModules({ userProgress, setUserProgress }) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-foreground">
-                    {learningModules.filter(m => m.completed).length}
+                    {modules.filter(m => m.completed).length}
                   </div>
                   <div className="text-sm text-muted-foreground">Completed</div>
                 </div>
@@ -138,7 +181,7 @@ export default function LearningModules({ userProgress, setUserProgress }) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-foreground">
-                    {learningModules.reduce((total, m) => total + (m.completed ? m.xp : 0), 0)}
+                    {modules.reduce((total, m) => total + (m.completed ? m.xp_reward : 0), 0)}
                   </div>
                   <div className="text-sm text-muted-foreground">XP Earned</div>
                 </div>
@@ -151,7 +194,7 @@ export default function LearningModules({ userProgress, setUserProgress }) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-foreground">
-                    {learningModules.filter(m => m.completed).length}
+                    {modules.filter(m => m.completed).length}
                   </div>
                   <div className="text-sm text-muted-foreground">Badges</div>
                 </div>
@@ -171,7 +214,7 @@ export default function LearningModules({ userProgress, setUserProgress }) {
             Your Learning Path
           </h3>
 
-          {learningModules.map((module, index) => (
+          {modules.map((module, index) => (
             <Card
               key={module.id}
               className={`group cursor-pointer transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] bg-gradient-to-br from-white/80 to-blue-50/80 backdrop-blur-xl border border-white/20 ${
@@ -206,13 +249,13 @@ export default function LearningModules({ userProgress, setUserProgress }) {
                       </div>
                       <Badge 
                         variant="outline" 
-                        className={`${difficultyColors[module.difficulty]} border-0 font-medium`}
+                        className={`${difficultyColors[module.difficulty as keyof typeof difficultyColors]} border-0 font-medium`}
                       >
                         {module.difficulty}
                       </Badge>
                       <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1 rounded-full">
                         <Trophy className="w-3 h-3 text-yellow-600" />
-                        <span className="text-yellow-700 font-medium">{module.xp} XP</span>
+                        <span className="text-yellow-700 font-medium">{module.xp_reward} XP</span>
                       </div>
                     </div>
                   </div>
@@ -264,7 +307,7 @@ export default function LearningModules({ userProgress, setUserProgress }) {
                   <CardTitle className="text-xl font-bold text-foreground">
                     {selectedModule.title}
                   </CardTitle>
-                  <Badge className={`${difficultyColors[selectedModule.difficulty]} border-0 px-3 py-1`}>
+                  <Badge className={`${difficultyColors[selectedModule.difficulty as keyof typeof difficultyColors]} border-0 px-3 py-1`}>
                     {selectedModule.difficulty}
                   </Badge>
                 </div>
@@ -300,11 +343,11 @@ export default function LearningModules({ userProgress, setUserProgress }) {
                   <div className="text-sm text-muted-foreground">
                     <div className="flex items-center gap-2 mb-1">
                       <Trophy className="w-4 h-4 text-yellow-500" />
-                      <span className="font-medium">Earn {selectedModule.xp} XP</span>
+                      <span className="font-medium">Earn {selectedModule?.xp_reward || selectedModule?.xp || 0} XP</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Star className="w-4 h-4 text-purple-500" />
-                      <span className="font-medium">Unlock "{selectedModule.badge}" badge</span>
+                      <span className="font-medium">Unlock "{selectedModule?.badge_name || selectedModule?.badge || 'Achievement'}" badge</span>
                     </div>
                   </div>
                   <Button 

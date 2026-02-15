@@ -256,7 +256,7 @@ export default function GameificationDashboard({ userProgress }: { userProgress:
                   {earnedBadges.map((badge) => (
                     <div
                       key={badge.id}
-                      className={`p-4 rounded-2xl border-2 ${rarityColors[badge.rarity]} hover:scale-105 transition-all duration-300 cursor-pointer group`}
+                      className={`p-4 rounded-2xl border-2 ${rarityColors[badge.rarity as keyof typeof rarityColors]} hover:scale-105 transition-all duration-300 cursor-pointer group`}
                     >
                       <div className="text-center">
                         <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-300">{badge.icon}</div>
